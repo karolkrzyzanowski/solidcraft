@@ -122,7 +122,7 @@ pub fn principal_frame(points: &[Vec3]) -> Option<(Vec3, [Vec3; 3])> {
     }
     let mut m = [[0.0; 3]; 3];
     for p in points {
-        let d = arr((*p - c));
+        let d = arr(*p - c);
         for i in 0..3 {
             for j in 0..3 {
                 m[i][j] += d[i] * d[j];
@@ -171,7 +171,7 @@ pub fn fit_rigid(from: &[Vec3], to: &[Vec3]) -> Option<Rigid> {
     let (cf, ct) = (centroid(from)?, centroid(to)?);
     let mut s = [[0.0; 3]; 3];
     for (a, b) in from.iter().zip(to) {
-        let (a, b) = (arr((*a - cf)), arr((*b - ct)));
+        let (a, b) = (arr(*a - cf), arr(*b - ct));
         for i in 0..3 {
             for j in 0..3 {
                 s[i][j] += a[i] * b[j];

@@ -34,7 +34,7 @@ fn scanned_bracket() -> Session {
             Some("Imported scan"),
         )
         .unwrap();
-    s.model = Session::new(s.doc.clone()).model;
+    let mut s = Session::new((*s.doc).clone());
     run(&mut s, "solid.move", json!({"bodies":["Scan"],"translate":[30,-12,7],"axis":[1,2,3],"angle":"25 deg"}));
     s
 }

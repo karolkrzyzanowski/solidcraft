@@ -247,9 +247,9 @@ fn align(s: &mut Session, p: &Value) -> Result<Value> {
         p,
         FeatureKind::Move {
             bodies: vec![scan.clone().into()],
-            translate: [format!("{} mm", num(motion.t.x)), format!("{} mm", num(motion.t.y)), format!("{} mm", num(motion.t.z))],
+            translate: [format!("{} mm", num(motion.t.x)).into(), format!("{} mm", num(motion.t.y)).into(), format!("{} mm", num(motion.t.z)).into()],
             rotate_axis: Some(Dir(axis)),
-            angle: Some(format!("{} rad", num(angle))),
+            angle: Some(format!("{} rad", num(angle)).into()),
             copy: false,
         },
     )?;
