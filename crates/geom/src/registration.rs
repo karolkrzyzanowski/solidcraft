@@ -51,7 +51,8 @@ impl Rigid {
         }
         // Half a turn: the axis is the column of r + I with the largest diagonal.
         let k = (0..3).fold(0, |best, i| if r[i][i] > r[best][best] { i } else { best });
-        let col = Vec3::new(r[0][k] + if k == 0 { 1.0 } else { 0.0 }, r[1][k] + if k == 1 { 1.0 } else { 0.0 }, r[2][k] + if k == 2 { 1.0 } else { 0.0 });
+        let col =
+            Vec3::new(r[0][k] + if k == 0 { 1.0 } else { 0.0 }, r[1][k] + if k == 1 { 1.0 } else { 0.0 }, r[2][k] + if k == 2 { 1.0 } else { 0.0 });
         (col.normalized().unwrap_or(Vec3::Z), std::f64::consts::PI)
     }
 }
@@ -78,13 +79,13 @@ fn jacobi<const N: usize>(mut a: [[f64; N]; N]) -> ([f64; N], [[f64; N]; N]) {
                 let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
                 let c = 1.0 / (t * t + 1.0).sqrt();
                 let s = t * c;
-                for k in 0..N {
-                    let (x, y) = (a[k][p], a[k][q]);
-                    a[k][p] = c * x - s * y;
-                    a[k][q] = s * x + c * y;
+                for row in a.iter_mut() {
+                    let (x, y) = (row[p], row[q]);
+                    row[p] = c * x - s * y;
+                    row[q] = s * x + c * y;
                 }
-                for k in 0..N {
-                    let (x, y) = (a[p][k], a[q][k]);
+                let (rp, rq) = (a[p], a[q]);
+                for (k, (x, y)) in rp.iter().zip(&rq).enumerate() {
                     a[p][k] = c * x - s * y;
                     a[q][k] = s * x + c * y;
                 }
@@ -230,6 +231,9 @@ pub struct IcpResult {
     pub rigid: Rigid,
     /// RMS distance of the kept points from the surface after the last round (mm).
     pub rms: f64,
+    /// RMS distance of all the points, the farthest included (mm): a fit that matches nine
+    /// tenths of the points and leaves the rest hanging off the model is told apart by it.
+    pub rms_all: f64,
     pub iterations: usize,
 }
 
@@ -276,7 +280,8 @@ pub fn icp(points: &[Vec3], target: &TriangleSet, start: Rigid, options: &IcpOpt
     if let Some(kept) = d2.get(..n) {
         rms = (kept.iter().sum::<f64>() / n as f64).sqrt();
     }
-    Some(IcpResult { rigid, rms, iterations: rounds })
+    let rms_all = if d2.is_empty() { f64::INFINITY } else { (d2.iter().sum::<f64>() / d2.len() as f64).sqrt() };
+    Some(IcpResult { rigid, rms, rms_all, iterations: rounds })
 }
 
 /// The signed distance of a point from a reference surface: positive outside it (on the side
@@ -294,7 +299,13 @@ pub fn deviation(p: Vec3, target: &TriangleSet) -> Option<Deviation> {
     let n = target.normal(t)?;
     let side = (p - q).dot(n);
     // On the surface itself there is no side: the distance is zero.
-    let signed = if d <= 1e-12 { 0.0 } else if side < 0.0 { -d } else { d };
+    let signed = if d <= 1e-12 {
+        0.0
+    } else if side < 0.0 {
+        -d
+    } else {
+        d
+    };
     Some(Deviation { signed, nearest: q })
 }
 

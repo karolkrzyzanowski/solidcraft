@@ -12,7 +12,7 @@ fn run(s: &mut Session, id: &str, p: Value) -> Value {
 
 /// An L-shaped bracket with a bore (a solid named `Bracket`) and, beside it in the design, a
 /// mesh body `Scan` of the same part that has been turned and moved away.
-fn scanned_bracket() -> Session {
+fn bracket_with_scan() -> Session {
     let mut s = Session::default();
     run(&mut s, "sketch.create", json!({"plane":"XY","name":"Section"}));
     run(&mut s, "sketch.line", json!({"points":[[0,0],[40,0],[40,20],[20,20],[20,30],[0,30]],"closed":true}));
@@ -34,7 +34,11 @@ fn scanned_bracket() -> Session {
             Some("Imported scan"),
         )
         .unwrap();
-    let mut s = Session::new((*s.doc).clone());
+    Session::new((*s.doc).clone())
+}
+
+fn scanned_bracket() -> Session {
+    let mut s = bracket_with_scan();
     run(&mut s, "solid.move", json!({"bodies":["Scan"],"translate":[30,-12,7],"axis":[1,2,3],"angle":"25 deg"}));
     s
 }
@@ -47,6 +51,7 @@ fn a_displaced_scan_is_fitted_onto_its_model_and_measured() {
     let fit = run(&mut s, "mesh.align", json!({"body":"Scan","to":"Bracket","name":"Fit scan"}));
     assert_eq!(fit["mode"], "fit");
     assert!(fit["rms_mm"].as_f64().unwrap() < 0.05, "{fit}");
+    assert!(fit["rms_all_mm"].as_f64().unwrap() < 0.05, "{fit}");
     assert!(s.model.results.iter().all(|r| r.error.is_none()), "{:?}", s.model.results);
     let after = run(&mut s, "mesh.deviation", json!({"body":"Scan","to":"Bracket","tolerance":0.1}));
     assert!(after["rms_mm"].as_f64().unwrap() < 0.05, "{after}");

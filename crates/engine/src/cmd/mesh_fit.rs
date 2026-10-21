@@ -22,7 +22,7 @@ pub static COMMANDS: &[CommandSpec] = &[
          auto tries the principal frames, current starts where the scan is); iterations? (default 50, up to 500); keep?: share of the closest points \
          that take part in each round (0.5 to 1, default 0.9: noise and features the model lacks do not pull the fit); max_points? (default 20000, up to \
          200000); tolerance?: mm (0.001 to 1, default 0.02), how finely a curved reference is meshed; name? → a Move feature (timeline step, undoable), \
-         rotation {axis, degrees}, translation, rms_mm (fit), candidate (fit), warnings",
+         rotation {axis, degrees}, translation, rms_mm (fit, of the kept share), rms_all_mm (fit, of all points), candidate (fit), warnings",
     ),
     CommandSpec::new("mesh.deviation", "Mesh Deviation", deviation).icon("compare").noundo().params(
         "body?: scan, a mesh body (default: the selected mesh body); to?: reference body (default: the other selected body); tolerance?: mm (default 0.1), \
@@ -219,22 +219,34 @@ fn align(s: &mut Session, p: &Value) -> Result<Value> {
             let mut best: Option<(usize, registration::IcpResult)> = None;
             for (i, start) in candidates.iter().enumerate() {
                 if let Some(found) = registration::icp(&coarse, &target, *start, &rough)
-                    && best.as_ref().is_none_or(|(_, b)| found.rms < b.rms)
+                    && best.as_ref().is_none_or(|(_, b)| found.rms_all < b.rms_all)
                 {
                     best = Some((i, found));
                 }
             }
             let (index, rough_fit) = best.ok_or_else(|| bad(cmd, "the scan could not be fitted onto the reference"))?;
             let fine = IcpOptions { iterations, keep, ..IcpOptions::default() };
-            let found = registration::icp(&points, &target, rough_fit.rigid, &fine).ok_or_else(|| bad(cmd, "the scan could not be fitted onto the reference"))?;
+            let mut found = registration::icp(&points, &target, rough_fit.rigid, &fine)
+                .ok_or_else(|| bad(cmd, "the scan could not be fitted onto the reference"))?;
+            // A fit that ignores the farthest points can settle a few millimetres off with
+            // those points hanging out; once it is close, every point takes part.
+            let polish = IcpOptions { iterations: iterations.min(30), keep: 1.0, ..IcpOptions::default() };
+            if let Some(all) = registration::icp(&points, &target, found.rigid, &polish)
+                && all.rms_all < found.rms_all
+            {
+                found = all;
+            }
             let diag = registration::bounds(&ref_points).diagonal();
-            if found.rms > 0.05 * diag {
+            if found.rms_all > 0.05 * diag {
                 warnings.push(format!(
                     "the fit is poor (RMS {:.3} mm against a reference {:.1} mm across): the scan may be another part, or too different in shape; try `initial: \"current\"` after placing it by hand",
-                    found.rms, diag
+                    found.rms_all, diag
                 ));
             }
-            (found.rigid, json!({"mode": "fit", "reference": r, "rms_mm": found.rms, "candidate": index, "candidates": candidates.len(), "iterations": found.iterations}))
+            (
+                found.rigid,
+                json!({"mode": "fit", "reference": r, "rms_mm": found.rms, "rms_all_mm": found.rms_all, "candidate": index, "candidates": candidates.len(), "iterations": found.iterations}),
+            )
         }
     };
     if !motion.t.is_finite() || motion.r.iter().flatten().any(|x| !x.is_finite()) {
@@ -272,7 +284,9 @@ fn deviation(s: &mut Session, p: &Value) -> Result<Value> {
     let max_points = number(cmd, p, "max_points", 500_000.0, 100.0..=3_000_000.0)? as usize;
     let save = match p.get("save") {
         None | Some(Value::Null) => None,
-        Some(Value::String(path)) if !path.trim().is_empty() && path.len() < 4096 && path.to_ascii_lowercase().ends_with(".ply") => Some(path.clone()),
+        Some(Value::String(path)) if !path.trim().is_empty() && path.len() < 4096 && path.to_ascii_lowercase().ends_with(".ply") => {
+            Some(path.clone())
+        }
         Some(_) => return Err(bad(cmd, "`save` must be the path of a .ply file")),
     };
     let model = TriangleSet::new(&surface(s, &reference, chord, cmd)?);
