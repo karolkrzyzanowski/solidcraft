@@ -109,6 +109,36 @@ impl TriangleSet {
         );
     }
 
+    /// The point of the set nearest `p`, with its distance and triangle; `None` when the set is
+    /// empty or nothing lies within `limit`.
+    pub fn closest_point(&self, p: Vec3, limit: f64) -> Option<(f64, Vec3, u32)> {
+        use std::cell::Cell;
+        if !p.is_finite() || self.tris.is_empty() {
+            return None;
+        }
+        let best = Cell::new(if limit.is_finite() && limit >= 0.0 { limit } else { f64::INFINITY });
+        let found: Cell<Option<(Vec3, u32)>> = Cell::new(None);
+        self.bvh.visit(
+            |b| box_gap(&Aabb3 { min: p, max: p }, b) <= best.get(),
+            |i| {
+                let Some([a, b, c]) = self.tris.get(i as usize) else { return };
+                let q = closest_on_triangle(p, *a, *b, *c);
+                let d = q.dist(p);
+                if d <= best.get() {
+                    best.set(d);
+                    found.set(Some((q, i)));
+                }
+            },
+        );
+        found.get().map(|(q, i)| (best.get(), q, i))
+    }
+
+    /// The unit normal of triangle `t` (counter-clockwise seen from outside), if it has one.
+    pub fn normal(&self, t: u32) -> Option<Vec3> {
+        let [a, b, c] = self.tris.get(t as usize)?;
+        (*b - *a).cross(*c - *a).normalized()
+    }
+
     /// The distance from `p` to the nearest of the triangles `tris` (indices into this set).
     pub fn distance_to(&self, p: Vec3, tris: &[u32]) -> f64 {
         tris.iter()
