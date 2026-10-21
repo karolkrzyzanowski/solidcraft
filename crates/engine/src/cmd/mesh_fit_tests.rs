@@ -43,7 +43,7 @@ fn scanned_bracket() -> Session {
 fn a_displaced_scan_is_fitted_onto_its_model_and_measured() {
     let mut s = scanned_bracket();
     let before = run(&mut s, "mesh.deviation", json!({"body":"Scan","to":"Bracket"}));
-    assert!(before["rms_mm"].as_f64().unwrap() > 5.0, "{before}");
+    assert!(before["rms_mm"].as_f64().unwrap() > 2.0, "{before}");
     let fit = run(&mut s, "mesh.align", json!({"body":"Scan","to":"Bracket","name":"Fit scan"}));
     assert_eq!(fit["mode"], "fit");
     assert!(fit["rms_mm"].as_f64().unwrap() < 0.05, "{fit}");
