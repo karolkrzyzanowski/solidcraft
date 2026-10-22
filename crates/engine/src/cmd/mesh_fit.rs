@@ -179,9 +179,10 @@ fn align(s: &mut Session, p: &Value) -> Result<Value> {
     let (scan, reference) = pair(s, p, cmd, false)?;
     let st = s.model.state();
     let source = st.body(&scan).ok_or_else(|| bad(cmd, format!("no body `{scan}`")))?;
-    if s.doc.model_body_component(source) != s.active_component {
-        return Err(bad(cmd, "activate the mesh body's component before aligning it"));
-    }
+    // The Move lands in the scan's own component (a file inserted as a mesh has one): that
+    // component is active while it is made, and the one that was active is back afterwards.
+    let scan_component = s.doc.model_body_component(source);
+    let previous = s.active_component;
     let iterations = number(cmd, p, "iterations", 50.0, 1.0..=MAX_ITERATIONS as f64)? as usize;
     let keep = number(cmd, p, "keep", 0.9, 0.5..=1.0)?;
     let max_points = number(cmd, p, "max_points", 20_000.0, 100.0..=200_000.0)? as usize;
@@ -254,7 +255,10 @@ fn align(s: &mut Session, p: &Value) -> Result<Value> {
     }
     let (axis, angle) = motion.axis_angle();
     let num = |x: f64| format!("{x:.12}");
-    let mut feature = add_feature(
+    if scan_component != previous {
+        s.execute("component.activate", &json!({"component": scan_component}))?;
+    }
+    let made = add_feature(
         s,
         p,
         FeatureKind::Move {
@@ -264,7 +268,11 @@ fn align(s: &mut Session, p: &Value) -> Result<Value> {
             angle: Some(format!("{} rad", num(angle)).into()),
             copy: false,
         },
-    )?;
+    );
+    if scan_component != previous {
+        s.execute("component.activate", &json!({"component": previous}))?;
+    }
+    let mut feature = made?;
     if let (Some(out), Some(info)) = (feature.as_object_mut(), extra.as_object()) {
         out.extend(motion_json(&motion).as_object().cloned().unwrap_or_default());
         out.extend(info.clone());

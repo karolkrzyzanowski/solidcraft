@@ -137,3 +137,27 @@ fn an_empty_design_has_nothing_to_align() {
     assert!(s.execute("mesh.align", &json!({"body":"Scan"})).is_err());
     assert!(s.execute("mesh.deviation", &json!({"body":"Scan","to":"Other"})).is_err());
 }
+
+#[test]
+fn a_scan_inside_its_own_component_is_aligned_without_activating_it_first() {
+    let mut s = Session::default();
+    run(&mut s, "sketch.create", json!({"plane":"XY","name":"Section"}));
+    run(&mut s, "sketch.line", json!({"points":[[0,0],[40,0],[40,20],[20,20],[20,30],[0,30]],"closed":true}));
+    run(&mut s, "sketch.finish", json!({}));
+    run(&mut s, "solid.extrude", json!({"sketch":"Section","profiles":[{"point":[30,10]}],"distance":15,"body_name":"Bracket"}));
+    let path = std::env::temp_dir().join(format!("solidcraft-scan-component-{}.stl", std::process::id()));
+    run(&mut s, "file.save_mesh", json!({"path":path}));
+    let inserted = run(&mut s, "file.insert_mesh", json!({"path":path}));
+    std::fs::remove_file(&path).unwrap();
+    let component = inserted["component"].as_u64().unwrap();
+    // The inserted file's component is not the active one.
+    run(&mut s, "component.activate", json!({"component": 0}));
+    assert_ne!(s.active_component, component);
+    let scan = s.model.state().bodies.iter().find(|b| b.body.is_mesh()).map(|b| b.name.clone()).unwrap();
+    let r = run(&mut s, "mesh.align", json!({"body": scan}));
+    assert_eq!(r["mode"], "axes");
+    assert_eq!(s.active_component, 0, "the active component is back where it was");
+    let feature = s.doc.features.iter().find(|f| matches!(f.kind, FeatureKind::Move { .. })).unwrap();
+    assert_eq!(feature.component, component, "the Move belongs to the scan's component");
+    assert!(s.model.results.iter().all(|r| r.error.is_none()), "{:?}", s.model.results);
+}
