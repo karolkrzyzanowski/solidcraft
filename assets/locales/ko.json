@@ -573,6 +573,7 @@
   "cmd.material_properties_validate": "물리 재질 데이터 검증",
   "cmd.mesh_align": "메시 정렬",
   "cmd.mesh_convert": "메쉬 변환",
+  "cmd.mesh_detect": "형상 감지",
   "cmd.mesh_deviation": "메시 편차",
   "cmd.model_edges": "모서리 목록",
   "cmd.model_faces": "면 목록",

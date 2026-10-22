@@ -26,6 +26,7 @@ pub mod mesh_distance;
 pub mod network;
 mod plane;
 mod profile;
+pub mod primitives;
 pub mod registration;
 pub mod section;
 pub mod spline_space;

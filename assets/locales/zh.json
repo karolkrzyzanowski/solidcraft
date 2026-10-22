@@ -573,6 +573,7 @@
   "cmd.material_properties_validate": "验证物理材料数据",
   "cmd.mesh_align": "对齐网格",
   "cmd.mesh_convert": "转换网格",
+  "cmd.mesh_detect": "检测形状",
   "cmd.mesh_deviation": "网格偏差",
   "cmd.model_edges": "列出边",
   "cmd.model_faces": "列出面",

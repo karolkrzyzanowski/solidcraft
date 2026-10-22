@@ -36,7 +36,7 @@ pub static COMMANDS: &[CommandSpec] = &[
 
 const MAX_ITERATIONS: usize = 500;
 
-fn number(cmd: &str, p: &Value, key: &str, default: f64, range: std::ops::RangeInclusive<f64>) -> Result<f64> {
+pub(super) fn number(cmd: &str, p: &Value, key: &str, default: f64, range: std::ops::RangeInclusive<f64>) -> Result<f64> {
     match p.get(key) {
         None | Some(Value::Null) => Ok(default),
         Some(v) => v
@@ -56,7 +56,7 @@ fn name_param(cmd: &str, p: &Value, key: &str) -> Result<Option<String>> {
 
 /// The scan and the reference: `body` and `to`, else the selected bodies (the mesh body is the
 /// scan; with two selected, the other is the reference).
-fn pair(s: &Session, p: &Value, cmd: &str, need_reference: bool) -> Result<(String, Option<String>)> {
+pub(super) fn pair(s: &Session, p: &Value, cmd: &str, need_reference: bool) -> Result<(String, Option<String>)> {
     let st = s.world_state();
     let selected: Vec<String> = s.selection.iter().filter_map(|x| if let Sel::Body { name } = x { Some(name.clone()) } else { None }).collect();
     let is_mesh = |n: &str| st.body(n).is_some_and(|b| b.body.is_mesh());
@@ -100,7 +100,7 @@ fn pair(s: &Session, p: &Value, cmd: &str, need_reference: bool) -> Result<(Stri
 }
 
 /// A body's surface as a mesh, in world placement.
-fn surface(s: &Session, name: &str, chord: f64, cmd: &str) -> Result<Mesh> {
+pub(super) fn surface(s: &Session, name: &str, chord: f64, cmd: &str) -> Result<Mesh> {
     let st = s.world_state();
     let b = st.body(name).ok_or_else(|| bad(cmd, format!("no body `{name}`")))?;
     let mesh = b.body.tessellate_with(chord, true).map_err(|e| bad(cmd, format!("`{name}`: {e}")))?;
@@ -112,7 +112,7 @@ fn surface(s: &Session, name: &str, chord: f64, cmd: &str) -> Result<Mesh> {
 
 /// The distinct vertices of a mesh whose corners are split per triangle, with the triangles
 /// rewritten to them.
-fn weld(mesh: &Mesh) -> (Vec<Vec3>, Vec<[u32; 3]>) {
+pub(super) fn weld(mesh: &Mesh) -> (Vec<Vec3>, Vec<[u32; 3]>) {
     let mut index: HashMap<[u64; 3], u32> = HashMap::new();
     let mut points: Vec<Vec3> = Vec::new();
     let mut map = |p: Vec3| -> Option<u32> {
@@ -144,7 +144,7 @@ fn sample(points: &[Vec3], n: usize) -> Vec<Vec3> {
     (0..n).filter_map(|i| points.get((i as f64 * step) as usize).copied()).collect()
 }
 
-fn array(v: Vec3) -> [f64; 3] {
+pub(super) fn array(v: Vec3) -> [f64; 3] {
     [v.x, v.y, v.z]
 }
 

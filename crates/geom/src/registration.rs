@@ -58,7 +58,7 @@ impl Rigid {
 }
 
 /// Eigenvalues and eigenvectors (as columns) of a symmetric matrix, by Jacobi rotations.
-fn jacobi<const N: usize>(mut a: [[f64; N]; N]) -> ([f64; N], [[f64; N]; N]) {
+pub(crate) fn jacobi<const N: usize>(mut a: [[f64; N]; N]) -> ([f64; N], [[f64; N]; N]) {
     let mut v = [[0.0; N]; N];
     for (i, row) in v.iter_mut().enumerate() {
         row[i] = 1.0;

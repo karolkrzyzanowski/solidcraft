@@ -161,3 +161,32 @@ fn a_scan_inside_its_own_component_is_aligned_without_activating_it_first() {
     assert_eq!(feature.component, component, "the Move belongs to the scan's component");
     assert!(s.model.results.iter().all(|r| r.error.is_none()), "{:?}", s.model.results);
 }
+
+#[test]
+fn a_scanned_bracket_gives_its_planes_and_its_bore() {
+    let mut s = scanned_bracket();
+    let out = run(&mut s, "mesh.detect", json!({"body":"Scan","tolerance":0.05,"min_points":15}));
+    let shapes = out["shapes"].as_array().unwrap();
+    let planes = shapes.iter().filter(|x| x["kind"] == "plane").count();
+    assert!(planes >= 4, "{out}");
+    let bore = shapes.iter().find(|x| x["kind"] == "cylinder").unwrap_or_else(|| panic!("no bore: {out}"));
+    let radius = bore["cylinder"]["radius_mm"].as_f64().unwrap();
+    assert!((radius - 4.0).abs() < 0.1, "{out}");
+    assert!(out["covered"].as_f64().unwrap() > 0.8, "{out}");
+}
+
+#[test]
+fn shape_detection_refuses_bad_parameters() {
+    let mut s = scanned_bracket();
+    for p in [
+        json!({"body":"Scan","tolerance":-1}),
+        json!({"body":"Scan","angle":0}),
+        json!({"body":"Scan","trials":1e9}),
+        json!({"body":"Scan","planes":false,"cylinders":false}),
+        json!({"body":"Scan","save":"x.txt"}),
+        json!({"body":"Bracket"}),
+        json!({}),
+    ] {
+        assert!(s.execute("mesh.detect", &p).is_err(), "{p}");
+    }
+}

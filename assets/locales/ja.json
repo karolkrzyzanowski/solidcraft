@@ -573,6 +573,7 @@
   "cmd.material_properties_validate": "物理材料データを検証",
   "cmd.mesh_align": "メッシュを整列",
   "cmd.mesh_convert": "メッシュを変換",
+  "cmd.mesh_detect": "形状を検出",
   "cmd.mesh_deviation": "メッシュ偏差",
   "cmd.model_edges": "エッジを一覧表示",
   "cmd.model_faces": "面を一覧表示",

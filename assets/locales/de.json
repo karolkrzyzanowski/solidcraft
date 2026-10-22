@@ -573,6 +573,7 @@
   "cmd.material_properties_validate": "Physikalische Materialdaten prüfen",
   "cmd.mesh_align": "Netz ausrichten",
   "cmd.mesh_convert": "Netz konvertieren",
+  "cmd.mesh_detect": "Formen erkennen",
   "cmd.mesh_deviation": "Netzabweichung",
   "cmd.model_edges": "Kanten auflisten",
   "cmd.model_faces": "Flächen auflisten",
