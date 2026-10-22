@@ -38,4 +38,12 @@ reference .3mf from Bambu Studio for X1C).
 3. Check the toolbar/command-registry tests (icons, docs/features are generated on main — do not regenerate).
 4. Rebuild on the Mac, try with a real STL; consider a results window for the numbers and an in-app colour map.
 5. Then module 2 (primitive detection), new commands in a new file under `crates/engine/src/cmd/`.
+
+## Backlog (added 2026-10-22)
+- `mesh.align` / `mesh.deviation`: activate the scan's component automatically (today: "activate the mesh body's component before aligning it" after file.insert_mesh; same rule as mesh.convert).
+- Colour map of deviations inside the app (vertex colours in render/gpu/ui) and a results window for the numbers; today only PLY export + status line.
+- Done since: `.ply` import (`read_ply`), checked on an 8.7M-triangle Revopoint scan.
+- Surface-from-four-curves panel tool (idea from the Blender add-on "Surface Mesh" by 3Dartmodeling, concept-car panels from four Bézier boundary curves, live update, shared corners, mirror, flip normals). **Licence: that add-on is GPL and sold on Superhive: never read or copy its source.** Build from public documentation of what it does and the textbook Coons patch (S. A. Coons, 1967); SolidCraft already has the maths in `crates/geom/src/network.rs` and commands `surface.boundary`, `surface.patch`, `surface.match`, `surface.blend`, `surface.fair`. Missing: a one-step four-curve panel command with auto-fixed curve directions, shared-corner curve helpers, mirrored panel. Lower priority than primitive detection.
+- Engine error strings are English (not translated); Dock label shows "solidcraft".
+- Unchecked: the 3 failing upstream tests on the Mac (prism_local_tests, robustness_goldens seed_36/seed_71): confirm they fail on a clean branch too.
 - Upstream is read-only; push only to the fork. Mac device calls time out at 60 s: run long jobs with nohup and poll.
