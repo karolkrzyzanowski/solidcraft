@@ -280,7 +280,8 @@ fn refit_cylinder(cloud: &Cloud, inliers: &[u32]) -> Option<Shape> {
     let (a, b, cc) = ([sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]);
     let rhs = [-sxz, -syz, -sz];
     let det3 = |m: [[f64; 3]; 3]| {
-        m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
+        m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0])
     };
     let det = det3([a, b, cc]);
     if det.abs() < 1e-12 * (sxx * syy * n).abs().max(1e-300) {
@@ -398,10 +399,8 @@ fn refine(cloud: &Cloud, adj: &Adjacency, work: &mut Work, guess: Shape, alive: 
         Shape::Plane { .. } => refit_plane(cloud, &patch)?,
         Shape::Cylinder { .. } => refit_cylinder(cloud, &patch)?,
     };
-    let sum: f64 = patch
-        .iter()
-        .filter_map(|i| Some(residual(&shape, *cloud.points.get(*i as usize)?, *cloud.normals.get(*i as usize)?, -1.0)?.powi(2)))
-        .sum();
+    let sum: f64 =
+        patch.iter().filter_map(|i| Some(residual(&shape, *cloud.points.get(*i as usize)?, *cloud.normals.get(*i as usize)?, -1.0)?.powi(2))).sum();
     let rms = (sum / patch.len() as f64).sqrt();
     rms.is_finite().then_some(Found { shape, inliers: patch, rms })
 }

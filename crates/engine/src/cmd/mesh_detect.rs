@@ -20,7 +20,8 @@ pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("mesh.detect", "Detect 
 /// Most vertices searched; a finer scan is merged cell by cell first.
 const MAX_VERTICES: usize = 150_000;
 
-const PALETTE: [[u8; 3]; 8] = [[230, 80, 80], [80, 160, 230], [90, 200, 110], [240, 190, 60], [170, 100, 220], [60, 200, 200], [240, 130, 40], [200, 100, 160]];
+const PALETTE: [[u8; 3]; 8] =
+    [[230, 80, 80], [80, 160, 230], [90, 200, 110], [240, 190, 60], [170, 100, 220], [60, 200, 200], [240, 130, 40], [200, 100, 160]];
 
 fn detect(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "mesh.detect";
@@ -38,7 +39,9 @@ fn detect(s: &mut Session, p: &Value) -> Result<Value> {
     let seed = number(cmd, p, "seed", 1.0, 0.0..=1e12)? as u64;
     let save = match p.get("save") {
         None | Some(Value::Null) => None,
-        Some(Value::String(path)) if !path.trim().is_empty() && path.len() < 4096 && path.to_ascii_lowercase().ends_with(".ply") => Some(path.clone()),
+        Some(Value::String(path)) if !path.trim().is_empty() && path.len() < 4096 && path.to_ascii_lowercase().ends_with(".ply") => {
+            Some(path.clone())
+        }
         Some(_) => return Err(bad(cmd, "`save` must be the path of a .ply file")),
     };
     let (mut points, mut triangles) = weld(&surface(s, &scan, 0.05, cmd)?);
