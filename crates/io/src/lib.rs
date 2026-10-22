@@ -39,7 +39,7 @@ pub use gltf_in::{GltfImport, Loader, MAX_GLTF_BYTES, MeshPlan, PlanPlace, glb_c
 mod obj;
 pub use obj::read_obj;
 mod ply;
-pub use ply::write_ply_colored;
+pub use ply::{read_ply, write_ply_colored};
 pub use threemf::{MAX_3MF_BYTES, MeshObject, model_xml, model_xml_with, read_3mf, weld, write_3mf, write_3mf_with};
 pub use urdf::{UrdfOptions, UrdfPackage, urdf};
 
@@ -243,12 +243,12 @@ pub fn step_import_feature_named(bytes: &[u8], file: &str, names: StepNames) -> 
     })
 }
 
-/// Is this a mesh file we import (`.3mf`, `.stl`, `.obj`, `.glb`, `.gltf`, any case)?
+/// Is this a mesh file we import (`.3mf`, `.stl`, `.obj`, `.ply`, `.glb`, `.gltf`, any case)?
 pub fn is_mesh_path(path: &str) -> bool {
     std::path::Path::new(path)
         .extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|e| ["3mf", "stl", "obj", "glb", "gltf"].iter().any(|x| e.eq_ignore_ascii_case(x)))
+        .is_some_and(|e| ["3mf", "stl", "obj", "ply", "glb", "gltf"].iter().any(|x| e.eq_ignore_ascii_case(x)))
 }
 
 /// A 3MF, STL, OBJ or glTF file read as a mesh import feature.
@@ -278,6 +278,8 @@ pub fn mesh_import_feature(bytes: &[u8], file: &str) -> Result<MeshFeature> {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
     let (objects, warnings) = if ext == "obj" {
         obj::read_obj(bytes, &stem)?
+    } else if ext == "ply" {
+        ply::read_ply(bytes, &stem)?
     } else if ext == "stl" {
         let tris = read_stl(bytes)?;
         if tris.is_empty() {
