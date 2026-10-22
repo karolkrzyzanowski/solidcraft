@@ -66,7 +66,14 @@ pub(super) fn pair(s: &Session, p: &Value, cmd: &str, need_reference: bool) -> R
             let meshes: Vec<&String> = selected.iter().filter(|n| is_mesh(n)).collect();
             match meshes.as_slice() {
                 [one] => (*one).clone(),
-                [] => return Err(bad(cmd, "select a mesh body (or give `body`)")),
+                [] => {
+                    // Nothing selected: the design's only mesh body is the scan.
+                    let all: Vec<String> = st.bodies.iter().filter(|b| b.body.is_mesh()).map(|b| b.name.clone()).collect();
+                    match all.as_slice() {
+                        [one] => one.clone(),
+                        _ => return Err(bad(cmd, "select a mesh body (or give `body`)")),
+                    }
+                }
                 [first, ..] if need_reference && selected.len() == 2 => (*first).clone(),
                 _ => return Err(bad(cmd, "select one mesh body")),
             }

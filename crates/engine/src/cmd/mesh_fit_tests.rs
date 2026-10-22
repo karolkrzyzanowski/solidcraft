@@ -190,3 +190,11 @@ fn shape_detection_refuses_bad_parameters() {
         assert!(s.execute("mesh.detect", &p).is_err(), "{p}");
     }
 }
+
+#[test]
+fn the_only_mesh_body_is_used_when_nothing_is_selected() {
+    let mut s = scanned_bracket();
+    s.selection.clear();
+    let out = run(&mut s, "mesh.detect", json!({"tolerance":0.05,"min_points":15}));
+    assert_eq!(out["scan"], "Scan");
+}
