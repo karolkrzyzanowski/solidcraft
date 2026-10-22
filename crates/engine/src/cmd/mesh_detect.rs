@@ -25,6 +25,16 @@ const PALETTE: [[u8; 3]; 8] =
 
 fn detect(s: &mut Session, p: &Value) -> Result<Value> {
     let cmd = "mesh.detect";
+    let mut p = p.clone();
+    // Nothing selected and no `body`: the design's only mesh body is the scan.
+    if p.get("body").is_none_or(Value::is_null) && !s.selection.iter().any(|x| matches!(x, crate::Sel::Body { .. })) {
+        let st = s.world_state();
+        let meshes: Vec<String> = st.bodies.iter().filter(|b| b.body.is_mesh()).map(|b| b.name.clone()).collect();
+        if let [one] = meshes.as_slice() {
+            p["body"] = json!(one);
+        }
+    }
+    let p = &p;
     let (scan, _) = pair(s, p, cmd, false)?;
     let planes = bool_(p, "planes").unwrap_or(true);
     let cylinders = bool_(p, "cylinders").unwrap_or(true);

@@ -185,7 +185,6 @@ fn shape_detection_refuses_bad_parameters() {
         json!({"body":"Scan","planes":false,"cylinders":false}),
         json!({"body":"Scan","save":"x.txt"}),
         json!({"body":"Bracket"}),
-        json!({}),
     ] {
         assert!(s.execute("mesh.detect", &p).is_err(), "{p}");
     }
