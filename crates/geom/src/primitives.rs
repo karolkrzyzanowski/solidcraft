@@ -96,6 +96,8 @@ const MIN_RADIUS_TOLERANCES: f64 = 3.0;
 const MAX_RADIUS_SIZES: f64 = 5.0;
 /// A cylinder takes a patch from a plane only with this many times its vertices.
 const CYLINDER_BIAS: f64 = 1.15;
+/// A cylinder whose arc bulges less than this many tolerances is a plane.
+const FLAT_SAGITTAS: f64 = 2.0;
 
 struct Rng(u64);
 
@@ -405,6 +407,88 @@ fn refine(cloud: &Cloud, adj: &Adjacency, work: &mut Work, guess: Shape, alive: 
     rms.is_finite().then_some(Found { shape, inliers: patch, rms })
 }
 
+/// How far the middle of a cylinder's arc stands out from the chord across its ends (mm): small
+/// means the patch is flat to within the scan's noise and a plane describes it as well.
+fn sagitta(cloud: &Cloud, f: &Found) -> f64 {
+    let Shape::Cylinder { origin, axis, radius, .. } = f.shape else { return f64::INFINITY };
+    let u = axis.any_perp();
+    let v = axis.cross(u);
+    let angles: Vec<f64> = f
+        .inliers
+        .iter()
+        .filter_map(|i| {
+            let d = *cloud.points.get(*i as usize)? - origin;
+            Some(d.dot(v).atan2(d.dot(u)))
+        })
+        .collect();
+    if angles.is_empty() {
+        return f64::INFINITY;
+    }
+    // The mean direction, then the widest turn away from it either way.
+    let (s, c) = angles.iter().fold((0.0, 0.0), |(s, c), a| (s + a.sin(), c + a.cos()));
+    let mean = s.atan2(c);
+    let wrap = |a: f64| {
+        let d = (a - mean).rem_euclid(std::f64::consts::TAU);
+        if d > std::f64::consts::PI { d - std::f64::consts::TAU } else { d }
+    };
+    let (lo, hi) = angles.iter().map(|a| wrap(*a)).fold((0.0f64, 0.0f64), |(lo, hi), d| (lo.min(d), hi.max(d)));
+    let half = ((hi - lo) / 2.0).min(std::f64::consts::PI);
+    radius * (1.0 - half.cos())
+}
+
+fn rms_of(cloud: &Cloud, shape: &Shape, inliers: &[u32]) -> f64 {
+    let sum: f64 =
+        inliers.iter().filter_map(|i| Some(residual(shape, *cloud.points.get(*i as usize)?, *cloud.normals.get(*i as usize)?, -1.0)?.powi(2))).sum();
+    (sum / inliers.len().max(1) as f64).sqrt()
+}
+
+/// Whether two shapes are one: planes with the same facing and place, cylinders with the same axis
+/// line and radius.
+fn same_shape(a: &Shape, b: &Shape, tol: f64) -> bool {
+    match (a, b) {
+        (Shape::Plane { origin: oa, normal: na }, Shape::Plane { origin: ob, normal: nb }) => {
+            na.dot(*nb).abs() > 5f64.to_radians().cos() && (*ob - *oa).dot(*na).abs() < tol && (*oa - *ob).dot(*nb).abs() < tol
+        }
+        (Shape::Cylinder { origin: oa, axis: xa, radius: ra, .. }, Shape::Cylinder { origin: ob, axis: xb, radius: rb, .. }) => {
+            let d = *ob - *oa;
+            let off = d - *xa * d.dot(*xa);
+            xa.dot(*xb).abs() > 3f64.to_radians().cos() && off.len() < tol && (ra - rb).abs() < tol
+        }
+        _ => false,
+    }
+}
+
+/// Found shapes that are the same shape joined into one, refitted to all their vertices.
+fn merge(cloud: &Cloud, found: Vec<Found>, tol: f64) -> Vec<Found> {
+    let mut out: Vec<Found> = Vec::new();
+    for f in found {
+        let Some(k) = out.iter().position(|o| same_shape(&o.shape, &f.shape, tol)) else {
+            out.push(f);
+            continue;
+        };
+        let mut all = out[k].inliers.clone();
+        all.extend_from_slice(&f.inliers);
+        let refit = match f.shape {
+            Shape::Plane { .. } => refit_plane(cloud, &all),
+            Shape::Cylinder { .. } => refit_cylinder(cloud, &all),
+        };
+        match refit {
+            Some(shape) => {
+                let rms = rms_of(cloud, &shape, &all);
+                // Only if the joined fit is still as good as the two were.
+                if rms <= out[k].rms.max(f.rms) * 1.5 + tol * 0.2 {
+                    out[k] = Found { shape, inliers: all, rms };
+                } else {
+                    out.push(f);
+                }
+            }
+            None => out.push(f),
+        }
+    }
+    out.sort_by_key(|f| std::cmp::Reverse(f.inliers.len()));
+    out
+}
+
 /// Planes and cylinders on the mesh, the one with the most vertices first.
 pub fn detect(cloud: &Cloud, opts: &Options) -> Vec<Found> {
     let n = cloud.points.len();
@@ -478,7 +562,8 @@ pub fn detect(cloud: &Cloud, opts: &Options) -> Vec<Found> {
         let plane = best_plane.and_then(|(_, g)| refine(cloud, &adj, &mut work, g, &live, opts));
         let cylinder = best_cyl
             .and_then(|(_, g)| refine(cloud, &adj, &mut work, g, &live, opts))
-            .filter(|f| matches!(f.shape, Shape::Cylinder { radius, .. } if (MIN_RADIUS_TOLERANCES * opts.tolerance..=MAX_RADIUS_SIZES * size).contains(&radius)));
+            .filter(|f| matches!(f.shape, Shape::Cylinder { radius, .. } if (MIN_RADIUS_TOLERANCES * opts.tolerance..=MAX_RADIUS_SIZES * size).contains(&radius)))
+            .filter(|f| sagitta(cloud, f) > FLAT_SAGITTAS * opts.tolerance);
         let chosen = match (plane, cylinder) {
             (Some(p), Some(c)) => {
                 if c.inliers.len() as f64 > CYLINDER_BIAS * p.inliers.len() as f64 {
@@ -500,7 +585,7 @@ pub fn detect(cloud: &Cloud, opts: &Options) -> Vec<Found> {
         }
         out.push(chosen);
     }
-    out
+    merge(cloud, out, opts.tolerance)
 }
 
 /// A coarser mesh: the vertices that fall in one cell of a grid `cell` mm across become one at their

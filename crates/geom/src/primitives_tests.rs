@@ -103,3 +103,22 @@ fn decimation_merges_cells_and_refuses_bad_input() {
     assert!(cluster_decimate(&p, &[[0, 1, 9999]], 1.0).is_none());
     assert!(cluster_decimate(&[Vec3::new(f64::INFINITY, 0.0, 0.0)], &[], 1.0).is_none());
 }
+
+#[test]
+fn a_plane_split_in_two_is_one_plane_and_a_nearly_flat_arc_is_not_a_cylinder() {
+    let (p, t) = plane_grid(30, 30.0);
+    let cloud = Cloud::from_mesh(p, t).unwrap();
+    let mk = |idx: Vec<u32>| Found { shape: refit_plane(&cloud, &idx).unwrap(), rms: 0.0, inliers: idx };
+    let left = mk((0..450).collect());
+    let right = mk((450..900).collect());
+    let merged = merge(&cloud, vec![left, right], 0.1);
+    assert_eq!(merged.len(), 1);
+    assert_eq!(merged[0].inliers.len(), 900);
+    // A 30 mm wide strip of a cylinder 500 mm in radius bulges 0.225 mm.
+    let flat = Found {
+        shape: Shape::Cylinder { origin: Vec3::new(0.0, 0.0, -500.0), axis: Vec3::new(1.0, 0.0, 0.0), radius: 500.0, min: 0.0, max: 30.0 },
+        inliers: (0..900).collect(),
+        rms: 0.0,
+    };
+    assert!((sagitta(&cloud, &flat) - 0.225).abs() < 0.01, "{}", sagitta(&cloud, &flat));
+}
