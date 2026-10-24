@@ -10,8 +10,8 @@ use crate::params::{bad, bool_};
 use crate::{Result, Session};
 
 pub static COMMANDS: &[CommandSpec] = &[CommandSpec::new("mesh.detect", "Detect Shapes", detect).icon("compare").noundo().params(
-    "body?: a mesh body (default: the selected mesh body); planes? (default true); cylinders? (default true); tolerance?: mm (0.001 to 100, default 0.2), \
-     how far a vertex may lie from a shape; angle?: degrees (1 to 60, default 15), how far its normal may turn; min_points? (default 200); \
+    "body?: a mesh body (default: the selected mesh body); planes? (default true); cylinders? (default true); tolerance?: mm (0.001 to 100, default 0.5% of the scan's diagonal), \
+     how far a vertex may lie from a shape; angle?: degrees (1 to 60, default 25), how far its normal may turn; min_points? (default 1% of the vertices, at least 30); \
      max_shapes? (1 to 100, default 20); trials? (10 to 5000, default 400) guesses per shape; seed?; save?: path of a .ply file with each shape in its own \
      colour (grey where nothing was found) → shapes [{kind: plane | cylinder, points, share, rms_mm, plane: {origin, normal} | cylinder: {origin, axis, \
      radius_mm, from_mm, to_mm}}], covered (share of the vertices on a shape), vertices (used), verdict, ply {path, bytes}",
@@ -41,9 +41,10 @@ fn detect(s: &mut Session, p: &Value) -> Result<Value> {
     if !(planes || cylinders) {
         return Err(bad(cmd, "`planes` and `cylinders` are both off"));
     }
-    let tolerance = number(cmd, p, "tolerance", 0.2, 0.001..=100.0)?;
-    let angle = number(cmd, p, "angle", 15.0, 1.0..=60.0)?.to_radians();
-    let min_points = number(cmd, p, "min_points", 200.0, 3.0..=1e7)? as usize;
+    // Checked now; the defaults that depend on the scan's size follow once it is loaded.
+    number(cmd, p, "tolerance", 0.0, 0.001..=100.0).or_else(|e| if p.get("tolerance").is_none_or(Value::is_null) { Ok(0.0) } else { Err(e) })?;
+    let angle = number(cmd, p, "angle", 25.0, 1.0..=60.0)?.to_radians();
+    number(cmd, p, "min_points", 0.0, 3.0..=1e7).or_else(|e| if p.get("min_points").is_none_or(Value::is_null) { Ok(0.0) } else { Err(e) })?;
     let max_shapes = number(cmd, p, "max_shapes", 20.0, 1.0..=100.0)? as usize;
     let trials = number(cmd, p, "trials", 400.0, 10.0..=5000.0)? as usize;
     let seed = number(cmd, p, "seed", 1.0, 0.0..=1e12)? as u64;
@@ -70,6 +71,11 @@ fn detect(s: &mut Session, p: &Value) -> Result<Value> {
         }
     }
     let used = points.len();
+    // A scan is noisy in proportion to its size: half a percent of its diagonal, and patches of at least
+    // a percent of its vertices, unless given.
+    let diag = registration::bounds(&points).diagonal();
+    let tolerance = number(cmd, p, "tolerance", (diag * 0.005).max(0.05), 0.001..=100.0)?;
+    let min_points = number(cmd, p, "min_points", (used as f64 * 0.01).max(30.0), 3.0..=1e7)? as usize;
     let cloud = Cloud::from_mesh(points, triangles).ok_or_else(|| bad(cmd, "the scan has vertices that are not finite"))?;
     let found = primitives::detect(&cloud, &Options { planes, cylinders, tolerance, angle, min_points, max_shapes, trials, seed });
     let on: usize = found.iter().map(|f| f.inliers.len()).sum();
