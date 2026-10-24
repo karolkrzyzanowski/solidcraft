@@ -165,7 +165,7 @@ fn a_scan_inside_its_own_component_is_aligned_without_activating_it_first() {
 #[test]
 fn a_scanned_bracket_gives_its_planes_and_its_bore() {
     let mut s = scanned_bracket();
-    let out = run(&mut s, "mesh.detect", json!({"body":"Scan","tolerance":0.05,"min_points":15}));
+    let out = run(&mut s, "mesh.detect", json!({"body":"Scan","tolerance":0.05,"angle":15,"min_points":15}));
     let shapes = out["shapes"].as_array().unwrap();
     let planes = shapes.iter().filter(|x| x["kind"] == "plane").count();
     assert!(planes >= 3, "{out}");
