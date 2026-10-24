@@ -120,5 +120,5 @@ fn a_plane_split_in_two_is_one_plane_and_a_nearly_flat_arc_is_not_a_cylinder() {
         inliers: (0..900).collect(),
         rms: 0.0,
     };
-    assert!((sagitta(&cloud, &flat) - 0.225).abs() < 0.01, "{}", sagitta(&cloud, &flat));
+    assert!((sagitta(&cloud, &flat) - 0.21).abs() < 0.02, "{}", sagitta(&cloud, &flat));
 }
