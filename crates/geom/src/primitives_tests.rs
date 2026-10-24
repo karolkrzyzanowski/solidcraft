@@ -122,3 +122,14 @@ fn a_plane_split_in_two_is_one_plane_and_a_nearly_flat_arc_is_not_a_cylinder() {
     };
     assert!((sagitta(&cloud, &flat) - 0.21).abs() < 0.02, "{}", sagitta(&cloud, &flat));
 }
+
+#[test]
+fn a_face_is_solid_and_scattered_points_are_not() {
+    let (p, t) = plane_grid(30, 30.0);
+    let adj = Adjacency::new(p.len(), &t);
+    let face: Vec<u32> = (0..p.len() as u32).filter(|i| (i / 30) < 15).collect();
+    assert!(solidity(&adj, p.len(), &face) > 0.9);
+    // Every other row: each vertex has only its own row's neighbours in the patch.
+    let rows: Vec<u32> = (0..p.len() as u32).filter(|i| (i / 30) % 2 == 0).collect();
+    assert!(solidity(&adj, p.len(), &rows) < 0.6, "{}", solidity(&adj, p.len(), &rows));
+}

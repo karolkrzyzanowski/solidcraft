@@ -98,6 +98,8 @@ const MAX_RADIUS_SIZES: f64 = 5.0;
 const CYLINDER_BIAS: f64 = 1.15;
 /// A cylinder whose arc bulges less than this many tolerances is a plane.
 const FLAT_SAGITTAS: f64 = 2.0;
+/// A shape's vertices must be at least this solid ([`solidity`]).
+const MIN_SOLIDITY: f64 = 0.6;
 
 struct Rng(u64);
 
@@ -436,6 +438,27 @@ fn sagitta(cloud: &Cloud, f: &Found) -> f64 {
     radius * (1.0 - half.cos())
 }
 
+/// How much of a patch is one piece of surface: the share of its vertices that have at least half of
+/// their neighbours in the patch too. A face is near 1; a thin slice through a curved surface, or
+/// points scattered over a rough one, is far lower.
+fn solidity(adj: &Adjacency, n: usize, inliers: &[u32]) -> f64 {
+    let mut inside = vec![false; n];
+    for i in inliers {
+        if let Some(f) = inside.get_mut(*i as usize) {
+            *f = true;
+        }
+    }
+    let solid = inliers
+        .iter()
+        .filter(|i| {
+            let around = adj.of(**i);
+            let mine = around.iter().filter(|w| inside.get(**w as usize).copied().unwrap_or(false)).count();
+            mine * 2 >= around.len()
+        })
+        .count();
+    solid as f64 / inliers.len().max(1) as f64
+}
+
 fn rms_of(cloud: &Cloud, shape: &Shape, inliers: &[u32]) -> f64 {
     let sum: f64 =
         inliers.iter().filter_map(|i| Some(residual(shape, *cloud.points.get(*i as usize)?, *cloud.normals.get(*i as usize)?, -1.0)?.powi(2))).sum();
@@ -559,11 +582,13 @@ pub fn detect(cloud: &Cloud, opts: &Options) -> Vec<Found> {
                 }
             }
         }
-        let plane = best_plane.and_then(|(_, g)| refine(cloud, &adj, &mut work, g, &live, opts));
+        let plane =
+            best_plane.and_then(|(_, g)| refine(cloud, &adj, &mut work, g, &live, opts)).filter(|f| solidity(&adj, n, &f.inliers) >= MIN_SOLIDITY);
         let cylinder = best_cyl
             .and_then(|(_, g)| refine(cloud, &adj, &mut work, g, &live, opts))
             .filter(|f| matches!(f.shape, Shape::Cylinder { radius, .. } if (MIN_RADIUS_TOLERANCES * opts.tolerance..=MAX_RADIUS_SIZES * size).contains(&radius)))
-            .filter(|f| sagitta(cloud, f) > FLAT_SAGITTAS * opts.tolerance);
+            .filter(|f| sagitta(cloud, f) > FLAT_SAGITTAS * opts.tolerance)
+            .filter(|f| solidity(&adj, n, &f.inliers) >= MIN_SOLIDITY);
         let chosen = match (plane, cylinder) {
             (Some(p), Some(c)) => {
                 if c.inliers.len() as f64 > CYLINDER_BIAS * p.inliers.len() as f64 {
