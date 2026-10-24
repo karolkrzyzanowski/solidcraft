@@ -787,6 +787,11 @@ impl SolveApp {
                 if v.get("continuous").and_then(Value::as_bool) != Some(true) {
                     self.session.echo(language.format("ui.command_done", &[("command", label)]));
                 }
+                // Measuring commands (alignment, deviation, shape detection) give their result as
+                // a `verdict` line: show it, or a click on their button seems to do nothing.
+                if let Some(verdict) = v.get("verdict").and_then(Value::as_str) {
+                    self.set_status(verdict.to_string(), false);
+                }
                 if id == "file.new" {
                     // `file.new` starts from millimetres. Units of new designs still apply (#1205).
                     prefs::apply_new_design(self);
